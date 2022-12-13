@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "gdb",
+            "request": "attach",
+            "name": "Attach to QEMU",
+			"executable": "main.debug.efi",
+            "target": "localhost:1234",
+            "remote": true,
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "Launch QEMU",
+        },
+    ]
+}
