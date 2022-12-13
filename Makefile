@@ -29,21 +29,23 @@ LDFLAGS += -nostdlib $(DEBUG_FLAGS) \
 
 SRCS = $(wildcard *.S *.c ) $(wildcard gnu-efi/lib/*.c ) $(wildcard gnu-efi/lib/runtime/*.c ) $(wildcard gnu-efi/lib/$(ARCH)/*.c )
 
-OBJS:=$(SRCS:.c=.o)
+OBJS:=$(addprefix $(BUILD_DIR)/,$(SRCS))
+OBJS:=$(OBJS:.c=.o)
+OBJS:=$(OBJS:.S=.o)
 
 .PHONY: all
 
-all: $(BUILD_DIR) $(GEFI_DIR) $(BUILD_DIR)/main.efi
+all: $(BUILD_DIR) $(BUILD_DIR)/$(GEFI_DIR) $(BUILD_DIR)/main.efi
 
 $(BUILD_DIR):
 	if [ ! -d $@ ]; then mkdir $@; fi
 
-$(GEFI_DIR): $(BUILD_DIR)
+$(BUILD_DIR)/$(GEFI_DIR): $(BUILD_DIR)
 	if [ ! -d $@ ]; then mkdir -p $@; fi
 	if [ ! -d $@/x86_64 ]; then mkdir -p $@/x86_64; fi
 	if [ ! -d $@/runtime ]; then mkdir -p $@/runtime; fi
 
-$(BUILD_DIR)/%.efi: $(OBJS)
+$(BUILD_DIR)/main.efi: $(OBJS)
 	clang $(LDFLAGS) $?  -o $@ 
 	
 $(BUILD_DIR)/%.o: %.c
