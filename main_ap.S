@@ -52,3 +52,6 @@ loop:
     lock    incb aprunning
     // jump into C code (should never return)
     ljmp    $8, $secondary_ap_main
+
+.global ap_trampoline_end
+ap_trampoline_end:

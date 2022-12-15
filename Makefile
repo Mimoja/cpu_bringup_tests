@@ -29,9 +29,9 @@ LDFLAGS += -nostdlib $(DEBUG_FLAGS) \
 
 SRCS = $(wildcard *.S *.c ) $(wildcard gnu-efi/lib/*.c ) $(wildcard gnu-efi/lib/runtime/*.c ) $(wildcard gnu-efi/lib/$(ARCH)/*.c )
 
-OBJS:=$(addprefix $(BUILD_DIR)/,$(SRCS))
-OBJS:=$(OBJS:.c=.o)
-OBJS:=$(OBJS:.S=.o)
+TOBJS:=$(addprefix $(BUILD_DIR)/,$(SRCS))
+COBJS:=$(TOBJS:.c=.o)
+OBJS:=$(COBJS:.S=.o)
 
 .PHONY: all
 

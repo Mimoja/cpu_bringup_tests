@@ -6,7 +6,12 @@
 int _fltused = 0;
 
 EFI_SYSTEM_TABLE *SystemTable;
-extern int* ap_trampoline;
+extern uint8_t ap_trampoline[];
+extern uint8_t ap_trampoline_end[];
+#define TRAMPLINE_START (&ap_trampoline[0])
+#define TRAMPLINE_SIZE (&ap_trampoline_end[0] - &ap_trampoline[0])
+
+#define TARGET_PAGE 0x0
 
 void sleep()
 {
@@ -16,7 +21,6 @@ void sleep()
     y = ~y;
   }
 }
-
 
 // https://wiki.osdev.org/APIC
 #define APIC_INT_CMD_LOW 0x300
@@ -57,30 +61,22 @@ uintptr_t cpu_get_apic_base()
   return (eax & 0xfffff000);
 }
 
-void writeAPIC(uint32_t reg, uint32_t value, uint32_t mask)
+void writeAPIC(uint32_t reg, uint32_t value)
 {
-  uint32_t volatile *ptr;
-  ptr = (uint32_t volatile *) cpu_get_apic_base() + reg;
-  // https://wiki.osdev.org/Symmetric_Multiprocessing
-  *ptr = (*ptr & mask) | value;
+  uint32_t volatile *ptr = (uint32_t volatile *) cpu_get_apic_base() + reg;
+  *ptr =  value;
 }
 
 void sendInitIPI(int target)
 {
-  writeAPIC(APIC_INT_CMD_HIGH, target << 24, 0x00ffffff);
-  writeAPIC(APIC_INT_CMD_LOW, 0xC500, 0xfff00000);
-}
-
-void sendDeassertIPI(int target)
-{
-  writeAPIC(APIC_INT_CMD_HIGH, target << 24, 0x00ffffff);
-  writeAPIC(APIC_INT_CMD_LOW, 0x8500, 0xfff00000);
+  writeAPIC(APIC_INT_CMD_HIGH, target << 24);
+  writeAPIC(APIC_INT_CMD_LOW, 0x4500);
 }
 
 void sendStartupIPI(int target, intptr_t entry)
 {
-  writeAPIC(APIC_INT_CMD_HIGH, target << 24, 0x00ffffff);
-  writeAPIC(APIC_INT_CMD_LOW, 0x600 | entry, 0xfff0f800);
+  writeAPIC(APIC_INT_CMD_HIGH, target << 24);
+  writeAPIC(APIC_INT_CMD_LOW, 0x4600 | entry);
 }
 
 void waitForDelivery()
@@ -117,6 +113,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *sys)
 {
   SystemTable = sys;
   InitializeLib(ImageHandle, SystemTable);
+  SystemTable->BootServices->SetWatchdogTimer(0, 0, 0, NULL);
 
   EFI_LOADED_IMAGE *LoadedImage = NULL;
   EFI_STATUS status;
@@ -131,30 +128,29 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *sys)
     Print(L"handleprotocol: %r\n", status);
   }
 
-  Print(L"Image base: 0x%lx\n", LoadedImage->ImageBase);
-  Print(L"APIC 0 base: 0x%lx\n", cpu_get_apic_base());
-
   ASSERT(supports_apic());
 
-  memcpy((void*)0x8000, &ap_trampoline, 4096);
+  Print(L"Image base: 0x%lx\n", LoadedImage->ImageBase);
+  Print(L"APIC 0 base: 0x%lx 0x%lx\n", cpu_get_apic_base());
 
-  for (int apic = 1; apic < 16; apic++)
+  DumpHex(0, cpu_get_apic_base(), 64, (void*) cpu_get_apic_base());
+
+  memcpy((void*)TARGET_PAGE, TRAMPLINE_START, TRAMPLINE_SIZE);
+
+  for (int apic = 1; apic < 8; apic++)
   {
     Print(L"IPI CPU %d\n", apic);
 
     sendInitIPI(apic);
     waitForDelivery();
-    sendDeassertIPI(apic);
-    waitForDelivery();
   }
 
   sleep();
-  writeAPIC(0x280, 0, 0); // clear errors
 
-  for (int apic = 1; apic < 16; apic++)
+  for (int apic = 1; apic < 8; apic++)
   {
-    Print(L"IPI CPU %d to 0x%lx\n", apic, 0x8000);
-    sendStartupIPI(apic, 0x8);
+    Print(L"IPI CPU %d to 0x%lx\n", apic, TARGET_PAGE);
+    sendStartupIPI(apic, TARGET_PAGE >> EFI_PAGE_SHIFT);
     waitForDelivery();
   }
   Print(L"Done!\n");
